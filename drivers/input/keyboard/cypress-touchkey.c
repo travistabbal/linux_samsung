@@ -26,6 +26,7 @@
 #include <linux/delay.h>
 #include <linux/input.h>
 #include <linux/earlysuspend.h>
+#include <linux/kernel.h>
 #include <linux/input/cypress-touchkey.h>
 
 #define SCANCODE_MASK		0x07
@@ -150,30 +151,37 @@ static irqreturn_t touchkey_interrupt_thread(int irq, void *touchkey_devdata)
 	struct cypress_touchkey_devdata *devdata = touchkey_devdata;
 
 	ret = i2c_touchkey_read_byte(devdata, &data);
-	if (ret || (data & ESD_STATE_MASK)) {
+	if (ret || (data & ESD_STATE_MASK)) 
+	{
 		ret = recovery_routine(devdata);
-		if (ret) {
-			dev_err(&devdata->client->dev, "%s: touchkey recovery "
-					"failed!\n", __func__);
+		if (ret) 
+		{
+			dev_err(&devdata->client->dev, "%s: touchkey recovery "	
+				"failed!\n", __func__);
 			goto err;
 		}
 	}
 
-	if (devdata->has_legacy_keycode) {
+	if (devdata->has_legacy_keycode) 
+	{
 		scancode = (data & SCANCODE_MASK) - 1;
-		if (scancode < 0 || scancode >= devdata->pdata->keycode_cnt) {
+		if (scancode < 0 || scancode >= devdata->pdata->keycode_cnt) 
+		{
 			dev_err(&devdata->client->dev, "%s: scancode is out of "
 				"range\n", __func__);
 			goto err;
 		}
-		input_report_key(devdata->input_dev,
-			devdata->pdata->keycode[scancode],
-			!(data & UPDOWN_EVENT_MASK));
-	} else {
+		input_report_key(devdata->input_dev, devdata->pdata->keycode[scancode],	!(data & UPDOWN_EVENT_MASK));
+		
+		printk(KERN_NOTICE "cypress-scancode: %i", devdata->pdata->keycode[scancode]);
+	} 
+	else 
+	{
 		for (i = 0; i < devdata->pdata->keycode_cnt; i++)
-			input_report_key(devdata->input_dev,
-				devdata->pdata->keycode[i],
-				!!(data & (1U << i)));
+		{
+			input_report_key(devdata->input_dev, devdata->pdata->keycode[i], !!(data & (1U << i)));
+			printk(KERN_NOTICE "cypress-scancode: %i", devdata->pdata->keycode[i]);
+		}
 	}
 
 	input_sync(devdata->input_dev);
@@ -329,6 +337,9 @@ static int cypress_touchkey_probe(struct i2c_client *client,
 	register_early_suspend(&devdata->early_suspend);
 
 	devdata->is_powering_on = false;
+	
+	if (devdata->has_legacy_keycode)
+		printk(KERN_NOTICE "cypress-has_legacy_keycode");
 
 	return 0;
 
